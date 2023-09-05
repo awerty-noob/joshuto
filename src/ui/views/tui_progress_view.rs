@@ -114,7 +114,7 @@ impl<'a> Widget for TuiProgressView<'a> {
                             }
                             _ => {}
                         }
-                        context.events.flush();
+                        context.events.flush().await;
                     }
                     _ => {}
                 };

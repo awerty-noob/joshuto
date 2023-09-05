@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::commands::{cursor_move, parent_cursor_move, reload};
 use crate::config::{AppKeyMapping, KeyMapping};
 use crate::context::AppContext;
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 use crate::event::AppEvent;
 use crate::fs::JoshutoDirList;
 use crate::history::DirectoryHistory;
@@ -22,19 +22,19 @@ use crate::ui;
 use crate::ui::views::TuiCommandMenu;
 use crate::util::format;
 
-pub fn poll_event_until_simple_keybind<'a>(
+pub async fn poll_event_until_simple_keybind<'a>(
     backend: &mut ui::AppBackend,
     context: &mut AppContext,
     keymap: &'a KeyMapping,
 ) -> Option<&'a Vec<Command>> {
     let mut keymap = keymap;
 
-    context.flush_event();
+    context.flush_event().await;
 
     loop {
         backend.render(TuiCommandMenu::new(context, keymap));
 
-        if let Ok(event) = context.poll_event() {
+        if let Ok(event) = context.poll_event().await {
             match event {
                 AppEvent::Termion(event) => {
                     match event {
@@ -49,25 +49,25 @@ pub fn poll_event_until_simple_keybind<'a>(
                             None => return None,
                         },
                     }
-                    context.flush_event();
+                    context.flush_event().await;
                 }
-                event => process_noninteractive(event, context),
+                event => process_noninteractive(event, context).await,
             }
         }
     }
 }
 
-pub fn process_noninteractive(event: AppEvent, context: &mut AppContext) {
+pub async fn process_noninteractive(event: AppEvent, context: &mut AppContext) {
     match event {
         AppEvent::IoWorkerCreate => process_new_worker(context),
         AppEvent::FileOperationProgress(res) => process_worker_progress(context, res),
-        AppEvent::IoWorkerResult(res) => process_finished_worker(context, res),
+        AppEvent::IoWorkerResult(res) => process_finished_worker(context, res).await,
         AppEvent::PreviewDir { id, path, res } => process_dir_preview(context, id, path, *res),
         AppEvent::PreviewFile { path, res } => process_file_preview(context, path, *res),
         AppEvent::Signal(signal::SIGWINCH) => {}
         AppEvent::Filesystem(e) => process_filesystem_event(e, context),
         AppEvent::ChildProcessComplete(child_id) => {
-            context.worker_context_mut().join_child(child_id);
+            context.worker_context_mut().join_child(child_id).await;
         }
         _ => {}
     }
@@ -89,9 +89,9 @@ pub fn process_worker_progress(context: &mut AppContext, res: FileOperationProgr
     worker_context.update_msg();
 }
 
-pub fn process_finished_worker(
+pub async fn process_finished_worker(
     context: &mut AppContext,
-    res: JoshutoResult<FileOperationProgress>,
+    res: AppResult<FileOperationProgress>,
 ) {
     let worker_context = context.worker_context_mut();
     let observer = worker_context.remove_worker().unwrap();
@@ -114,7 +114,7 @@ pub fn process_finished_worker(
         }
     }
 
-    observer.join();
+    observer.join().await;
     match res {
         Ok(progress) => {
             let op = progress.kind().actioned_str();
@@ -204,7 +204,7 @@ pub fn process_file_preview(
     }
 }
 
-pub fn process_unsupported(
+pub async fn process_unsupported(
     context: &mut AppContext,
     backend: &mut ui::AppBackend,
     keymap_t: &AppKeyMapping,
@@ -213,13 +213,13 @@ pub fn process_unsupported(
     match event.as_slice() {
         [27, 79, 65] => {
             let command = Command::CursorMoveUp { offset: 1 };
-            if let Err(e) = command.execute(context, backend, keymap_t) {
+            if let Err(e) = command.execute(context, backend, keymap_t).await {
                 context.message_queue_mut().push_error(e.to_string());
             }
         }
         [27, 79, 66] => {
             let command = Command::CursorMoveDown { offset: 1 };
-            if let Err(e) = command.execute(context, backend, keymap_t) {
+            if let Err(e) = command.execute(context, backend, keymap_t).await {
                 context.message_queue_mut().push_error(e.to_string());
             }
         }
@@ -248,7 +248,7 @@ fn children_cursor_move(context: &mut AppContext, new_index: usize) {
     }
 }
 
-pub fn process_mouse(
+pub async fn process_mouse(
     event: MouseEvent,
     context: &mut AppContext,
     backend: &mut ui::AppBackend,
@@ -273,12 +273,12 @@ pub fn process_mouse(
         MouseEvent::Press(MouseButton::WheelUp, x, _) => {
             if x < layout_rect[1].x {
                 let command = Command::ParentCursorMoveUp { offset: 1 };
-                if let Err(e) = command.execute(context, backend, keymap_t) {
+                if let Err(e) = command.execute(context, backend, keymap_t).await {
                     context.message_queue_mut().push_error(e.to_string());
                 }
             } else if x < layout_rect[2].x {
                 let command = Command::CursorMoveUp { offset: 1 };
-                if let Err(e) = command.execute(context, backend, keymap_t) {
+                if let Err(e) = command.execute(context, backend, keymap_t).await {
                     context.message_queue_mut().push_error(e.to_string());
                 }
             } else {
@@ -288,12 +288,12 @@ pub fn process_mouse(
         MouseEvent::Press(MouseButton::WheelDown, x, _) => {
             if x < layout_rect[1].x {
                 let command = Command::ParentCursorMoveDown { offset: 1 };
-                if let Err(e) = command.execute(context, backend, keymap_t) {
+                if let Err(e) = command.execute(context, backend, keymap_t).await {
                     context.message_queue_mut().push_error(e.to_string());
                 }
             } else if x < layout_rect[2].x {
                 let command = Command::CursorMoveDown { offset: 1 };
-                if let Err(e) = command.execute(context, backend, keymap_t) {
+                if let Err(e) = command.execute(context, backend, keymap_t).await {
                     context.message_queue_mut().push_error(e.to_string());
                 }
             } else {
@@ -333,7 +333,7 @@ pub fn process_mouse(
                                 let command = Command::ChangeDirectory {
                                     path: path::PathBuf::from(".."),
                                 };
-                                if let Err(e) = command.execute(context, backend, keymap_t) {
+                                if let Err(e) = command.execute(context, backend, keymap_t).await {
                                     context.message_queue_mut().push_error(e.to_string());
                                 }
                             };
@@ -342,7 +342,7 @@ pub fn process_mouse(
                             cursor_move::cursor_move(context, new_index);
                             if button == MouseButton::Right {
                                 let command = Command::OpenFile;
-                                if let Err(e) = command.execute(context, backend, keymap_t) {
+                                if let Err(e) = command.execute(context, backend, keymap_t).await {
                                     context.message_queue_mut().push_error(e.to_string());
                                 }
                             }
@@ -351,7 +351,7 @@ pub fn process_mouse(
                             children_cursor_move(context, new_index);
                             if button == MouseButton::Left {
                                 let command = Command::OpenFile;
-                                if let Err(e) = command.execute(context, backend, keymap_t) {
+                                if let Err(e) = command.execute(context, backend, keymap_t).await {
                                     context.message_queue_mut().push_error(e.to_string());
                                 }
                             }
@@ -363,5 +363,5 @@ pub fn process_mouse(
         }
         _ => {}
     }
-    context.flush_event();
+    context.flush_event().await;
 }

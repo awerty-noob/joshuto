@@ -1,9 +1,10 @@
 use std::path;
 use std::process::{Command, Output};
-use std::thread;
 use std::time;
 
 use ratatui::layout::Rect;
+
+use tokio::task;
 
 use crate::context::AppContext;
 use crate::event::AppEvent;
@@ -78,7 +79,7 @@ impl Background {
                     .previews_mut()
                     .insert(path.clone(), PreviewFileState::Loading);
 
-                let _ = thread::spawn(move || {
+                let _ = task::spawn(async move {
                     let file_full_path = path.as_path();
 
                     let res = Command::new(script)
@@ -96,14 +97,14 @@ impl Background {
                                 path,
                                 res: Box::new(Ok(preview)),
                             };
-                            let _ = event_tx.send(res);
+                            let _ = event_tx.send(res).await;
                         }
                         Err(e) => {
                             let res = AppEvent::PreviewFile {
                                 path,
                                 res: Box::new(Err(e)),
                             };
-                            let _ = event_tx.send(res);
+                            let _ = event_tx.send(res).await;
                         }
                     }
                 });

@@ -4,7 +4,7 @@ use termion::event::{Event, Key};
 
 use crate::config::AppKeyMapping;
 use crate::context::AppContext;
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 use crate::event::process_event;
 use crate::event::AppEvent;
 use crate::key_command::{Command, CommandKeybind};
@@ -12,12 +12,12 @@ use crate::ui::widgets;
 use crate::ui::widgets::TuiHelp;
 use crate::ui::AppBackend;
 
-pub fn help_loop(
+pub async fn help_loop(
     context: &mut AppContext,
     backend: &mut AppBackend,
     keymap_t: &AppKeyMapping,
-) -> JoshutoResult {
-    context.flush_event();
+) -> AppResult {
+    context.flush_event().await;
 
     let mut offset = 0;
     let mut search_query = String::new();
@@ -33,7 +33,7 @@ pub fn help_loop(
         context.remove_external_preview();
         backend.render(TuiHelp::new(&keymap, &mut offset, &search_query));
 
-        let event = match context.poll_event() {
+        let event = match context.poll_event().await {
             Ok(event) => event,
             Err(_) => return Ok(()),
         };
@@ -84,9 +84,9 @@ pub fn help_loop(
                         _ => (),
                     }
                 }
-                context.flush_event();
+                context.flush_event().await;
             }
-            _ => process_event::process_noninteractive(event, context),
+            _ => process_event::process_noninteractive(event, context).await,
         }
     }
 

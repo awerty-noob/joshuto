@@ -89,7 +89,7 @@ impl<'a> TuiTextField<'a> {
         self
     }
 
-    pub fn get_input(
+    pub async fn get_input(
         &mut self,
         backend: &mut AppBackend,
         context: &mut AppContext,
@@ -180,7 +180,7 @@ impl<'a> TuiTextField<'a> {
                 })
                 .unwrap();
 
-            if let Ok(event) = context.poll_event() {
+            if let Ok(event) = context.poll_event().await {
                 match event {
                     AppEvent::Termion(Event::Key(key)) => {
                         let dirty = match key {
@@ -296,12 +296,12 @@ impl<'a> TuiTextField<'a> {
                         if dirty {
                             completion_tracker.take();
                         }
-                        context.flush_event();
+                        context.flush_event().await;
                     }
                     AppEvent::Termion(_) => {
-                        context.flush_event();
+                        context.flush_event().await;
                     }
-                    event => process_event::process_noninteractive(event, context),
+                    event => process_event::process_noninteractive(event, context).await,
                 };
             }
         }

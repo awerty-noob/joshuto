@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::error::{JoshutoError, JoshutoErrorKind, JoshutoResult};
+use crate::error::{AppResult, JoshutoError, JoshutoErrorKind};
 
 /// Search and selection options globally valid for Joshuto (for all tabs)
 #[derive(Clone, Debug)]
@@ -32,7 +32,7 @@ impl std::default::Default for SearchOption {
 impl FromStr for CaseSensitivity {
     type Err = JoshutoError;
 
-    fn from_str(s: &str) -> JoshutoResult<Self> {
+    fn from_str(s: &str) -> AppResult<Self> {
         match s {
             "insensitive" => Ok(Self::Insensitive),
             "sensitive" => Ok(Self::Sensitive),

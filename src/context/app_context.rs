@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 use std::process;
-use std::sync::mpsc;
-use std::thread;
+
+use tokio::sync::mpsc;
+use tokio::task;
 
 use crate::commands::quit::QuitAction;
 use crate::config;
@@ -9,6 +10,7 @@ use crate::context::{
     CommandLineContext, LocalStateContext, MatchContext, MessageQueue, PreviewContext, TabContext,
     UiContext, WorkerContext,
 };
+use crate::error::AppResult;
 use crate::event::{AppEvent, Events};
 use crate::ui::views;
 use crate::ui::PreviewArea;
@@ -50,8 +52,8 @@ pub struct AppContext {
 }
 
 impl AppContext {
-    pub fn new(config: config::AppConfig, args: Args) -> Self {
-        let events = Events::new();
+    pub async fn new(config: config::AppConfig, args: Args) -> Self {
+        let events = Events::new().await;
         let event_tx = events.event_tx.clone();
 
         let mut commandline_context = CommandLineContext::new();
@@ -94,7 +96,7 @@ impl AppContext {
         let preview_shown_hook_script = preview_options.preview_shown_hook_script.as_ref();
         if let Some(hook_script) = preview_shown_hook_script {
             let hook_script = hook_script.to_path_buf();
-            let _ = thread::spawn(move || {
+            let _ = task::spawn(async move {
                 let _ = process::Command::new(hook_script.as_path())
                     .arg(preview_area.file_preview_path.as_path())
                     .arg(preview_area.preview_area.x.to_string())
@@ -112,7 +114,7 @@ impl AppContext {
         let preview_removed_hook_script = preview_options.preview_removed_hook_script.as_ref();
         if let Some(hook_script) = preview_removed_hook_script {
             let hook_script = hook_script.to_path_buf();
-            let _ = thread::spawn(|| {
+            let _ = task::spawn(async {
                 let _ = process::Command::new(hook_script).status();
             });
         }
@@ -206,11 +208,11 @@ impl AppContext {
     }
 
     // event related
-    pub fn poll_event(&self) -> Result<AppEvent, mpsc::RecvError> {
-        self.events.next()
+    pub async fn poll_event(&mut self) -> AppResult<AppEvent> {
+        self.events.next().await
     }
-    pub fn flush_event(&self) {
-        self.events.flush();
+    pub async fn flush_event(&self) {
+        self.events.flush().await;
     }
     pub fn clone_event_tx(&self) -> mpsc::Sender<AppEvent> {
         self.events.event_tx.clone()

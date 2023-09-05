@@ -1,7 +1,8 @@
 use std::collections::vec_deque::Iter;
 use std::collections::{HashMap, VecDeque};
-use std::sync::mpsc;
-use std::thread;
+
+use tokio::sync::mpsc;
+use tokio::task;
 
 use crate::error::{JoshutoError, JoshutoErrorKind};
 use crate::event::AppEvent;
@@ -9,7 +10,7 @@ use crate::io::{FileOperationProgress, IoWorkerObserver, IoWorkerThread};
 
 pub struct WorkerContext {
     // forks of applications
-    child_pool: HashMap<u32, thread::JoinHandle<()>>,
+    child_pool: HashMap<u32, task::JoinHandle<()>>,
     // to send info
     event_tx: mpsc::Sender<AppEvent>,
     // queue of IO workers
@@ -31,10 +32,10 @@ impl WorkerContext {
         self.event_tx.clone()
     }
     // worker related
-    pub fn push_worker(&mut self, thread: IoWorkerThread) {
+    pub async fn push_worker(&mut self, thread: IoWorkerThread) {
         self.worker_queue.push_back(thread);
         // error is ignored
-        let _ = self.event_tx.send(AppEvent::IoWorkerCreate);
+        let _ = self.event_tx.send(AppEvent::IoWorkerCreate).await;
     }
     pub fn is_busy(&self) -> bool {
         self.worker.is_some()
@@ -72,26 +73,26 @@ impl WorkerContext {
         if let Some(worker) = self.worker_queue.pop_front() {
             let src = worker.paths[0].parent().unwrap().to_path_buf();
             let dest = worker.dest.clone();
-            let handle = thread::spawn(move || {
-                let (wtx, wrx) = mpsc::channel();
+            let handle = task::spawn(async move {
+                let (wtx, mut wrx) = mpsc::channel(1024);
                 // start worker
-                let worker_handle = thread::spawn(move || worker.start(wtx));
+                let worker_handle = task::spawn(async move { worker.start(wtx).await });
                 // relay worker info to event loop
-                while let Ok(progress) = wrx.recv() {
-                    let _ = tx.send(AppEvent::FileOperationProgress(progress));
+                while let Some(progress) = wrx.recv().await {
+                    let _ = tx.send(AppEvent::FileOperationProgress(progress)).await;
                 }
-                let result = worker_handle.join();
+                let result = worker_handle.await;
 
                 match result {
                     Ok(res) => {
-                        let _ = tx.send(AppEvent::IoWorkerResult(res));
+                        let _ = tx.send(AppEvent::IoWorkerResult(res)).await;
                     }
                     Err(_) => {
                         let err = JoshutoError::new(
                             JoshutoErrorKind::UnknownError,
                             "Sending Error".to_string(),
                         );
-                        let _ = tx.send(AppEvent::IoWorkerResult(Err(err)));
+                        let _ = tx.send(AppEvent::IoWorkerResult(Err(err))).await;
                     }
                 }
             });
@@ -104,13 +105,13 @@ impl WorkerContext {
         self.worker.take()
     }
 
-    pub fn push_child(&mut self, child_id: u32, handle: thread::JoinHandle<()>) {
+    pub fn push_child(&mut self, child_id: u32, handle: task::JoinHandle<()>) {
         self.child_pool.insert(child_id, handle);
     }
 
-    pub fn join_child(&mut self, child_id: u32) {
+    pub async fn join_child(&mut self, child_id: u32) {
         if let Some(handle) = self.child_pool.remove(&child_id) {
-            let _ = handle.join();
+            let _ = handle.await;
         }
     }
 }

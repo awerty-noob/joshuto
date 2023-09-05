@@ -1,5 +1,6 @@
 use std::path;
-use std::thread;
+
+use tokio::task;
 
 use crate::context::AppContext;
 use crate::event::AppEvent;
@@ -20,7 +21,7 @@ impl PreviewDirState {
 pub struct Background {}
 
 impl Background {
-    pub fn load_preview(context: &mut AppContext, p: path::PathBuf) -> thread::JoinHandle<()> {
+    pub fn load_preview(context: &mut AppContext, p: path::PathBuf) {
         let event_tx = context.events.event_tx.clone();
         let options = context.config_ref().display_options_ref().clone();
         let tab_options = context
@@ -37,7 +38,7 @@ impl Background {
             .history_metadata_mut()
             .insert(p.clone(), PreviewDirState::Loading);
 
-        thread::spawn(move || {
+        let _ = task::spawn(async move {
             let path_clone = p.clone();
             let dir_res = JoshutoDirList::from_path(p, &options, &tab_options);
             let res = AppEvent::PreviewDir {
@@ -45,7 +46,7 @@ impl Background {
                 path: path_clone,
                 res: Box::new(dir_res),
             };
-            let _ = event_tx.send(res);
-        })
+            let _ = event_tx.send(res).await;
+        });
     }
 }

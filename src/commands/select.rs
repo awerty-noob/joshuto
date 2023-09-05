@@ -1,14 +1,10 @@
 use crate::config::option::SelectOption;
 use crate::context::{AppContext, MatchContext};
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 
 use super::cursor_move;
 
-pub fn select_files(
-    context: &mut AppContext,
-    pattern: &str,
-    options: &SelectOption,
-) -> JoshutoResult {
+pub fn select_files(context: &mut AppContext, pattern: &str, options: &SelectOption) -> AppResult {
     if pattern.is_empty() {
         select_without_pattern(context, options)
     } else {
@@ -16,7 +12,7 @@ pub fn select_files(
     }
 }
 
-fn select_without_pattern(context: &mut AppContext, options: &SelectOption) -> JoshutoResult {
+fn select_without_pattern(context: &mut AppContext, options: &SelectOption) -> AppResult {
     if options.all {
         if let Some(curr_list) = context.tab_context_mut().curr_tab_mut().curr_list_mut() {
             curr_list.iter_mut().for_each(|e| {
@@ -51,7 +47,7 @@ fn select_with_pattern(
     context: &mut AppContext,
     pattern: &str,
     options: &SelectOption,
-) -> JoshutoResult {
+) -> AppResult {
     let case_sensitivity = context
         .config_ref()
         .search_options_ref()

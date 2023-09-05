@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::context::AppContext;
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 use crate::ui::views::{DummyListener, TuiTextField};
 use crate::ui::AppBackend;
 use crate::util::unix;
@@ -36,7 +36,7 @@ pub fn str_to_mode(s: &str) -> u32 {
     mode
 }
 
-pub fn set_mode(context: &mut AppContext, backend: &mut AppBackend) -> JoshutoResult {
+pub async fn set_mode(context: &mut AppContext, backend: &mut AppBackend) -> AppResult {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
@@ -53,12 +53,13 @@ pub fn set_mode(context: &mut AppContext, backend: &mut AppBackend) -> JoshutoRe
             let mode_string = unix::mode_to_string(mode);
             let mut listener = DummyListener {};
 
-            context.flush_event();
+            context.flush_event().await;
             TuiTextField::default()
                 .prompt(":")
                 .prefix(PREFIX)
                 .suffix(&mode_string.as_str()[1..])
                 .get_input(backend, context, &mut listener)
+                .await
         }
         None => None,
     };

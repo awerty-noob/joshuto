@@ -4,7 +4,7 @@ use std::path;
 use crate::commands::{quit, reload};
 use crate::config::ProgramEntry;
 use crate::context::AppContext;
-use crate::error::{JoshutoError, JoshutoErrorKind, JoshutoResult};
+use crate::error::{AppResult, JoshutoError, JoshutoErrorKind};
 use crate::ui::views::DummyListener;
 use crate::ui::views::TuiTextField;
 use crate::ui::AppBackend;
@@ -87,7 +87,7 @@ fn _open_with_xdg(
     Ok(())
 }
 
-fn _open_with_helper<S>(
+async fn _open_with_helper<S>(
     context: &mut AppContext,
     backend: &mut AppBackend,
     options: Vec<&ProgramEntry>,
@@ -99,7 +99,7 @@ where
     const PROMPT: &str = "open_with ";
 
     let user_input: Option<String> = {
-        context.flush_event();
+        context.flush_event().await;
 
         let menu_options: Vec<String> = options
             .iter()
@@ -113,6 +113,7 @@ where
             .prefix(PROMPT)
             .menu_items(menu_options.iter().map(|s| s.as_str()))
             .get_input(backend, context, &mut listener)
+            .await
     };
     match user_input.as_ref() {
         Some(user_input) if user_input.starts_with(PROMPT) => {
@@ -147,7 +148,7 @@ where
     Ok(())
 }
 
-pub fn open(context: &mut AppContext, backend: &mut AppBackend) -> JoshutoResult {
+pub async fn open(context: &mut AppContext, backend: &mut AppBackend) -> AppResult {
     let curr_list = context.tab_context_ref().curr_tab_ref().curr_list_ref();
     let entry = curr_list.and_then(|s| s.curr_entry_ref().cloned());
 
@@ -182,7 +183,7 @@ pub fn open(context: &mut AppContext, backend: &mut AppBackend) -> JoshutoResult
             } else if config.xdg_open {
                 _open_with_xdg(context, backend, path)?;
             } else {
-                _open_with_helper(context, backend, options, &files)?;
+                _open_with_helper(context, backend, options, &files).await?;
             }
         }
     }
@@ -193,7 +194,7 @@ pub fn open_with_index(
     context: &mut AppContext,
     backend: &mut AppBackend,
     index: usize,
-) -> JoshutoResult {
+) -> AppResult {
     let paths = context
         .tab_context_ref()
         .curr_tab_ref()
@@ -221,7 +222,10 @@ pub fn open_with_index(
     Ok(())
 }
 
-pub fn open_with_interactive(context: &mut AppContext, backend: &mut AppBackend) -> JoshutoResult {
+pub async fn open_with_interactive(
+    context: &mut AppContext,
+    backend: &mut AppBackend,
+) -> AppResult {
     let mut paths = context
         .tab_context_ref()
         .curr_tab_ref()
@@ -242,6 +246,6 @@ pub fn open_with_interactive(context: &mut AppContext, backend: &mut AppBackend)
     let files: Vec<&str> = paths.iter().map(|e| e.file_name()).collect();
     let options = _get_options(paths[0].file_path());
 
-    _open_with_helper(context, backend, options, &files)?;
+    _open_with_helper(context, backend, options, &files).await?;
     Ok(())
 }

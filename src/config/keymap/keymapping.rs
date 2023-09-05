@@ -7,7 +7,7 @@ use std::str::FromStr;
 use termion::event::Event;
 
 use crate::config::{parse_config_or_default, TomlConfigFile};
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 use crate::key_command::{Command, CommandKeybind};
 use crate::traits::ToString;
 use crate::util::keyparse::str_to_event;
@@ -56,7 +56,7 @@ impl AppKeyMapping {
         }
     }
 
-    pub fn default_res() -> JoshutoResult<Self> {
+    pub fn default_res() -> AppResult<Self> {
         let crude: AppKeyMappingRaw = toml::from_str(DEFAULT_CONFIG_FILE_PATH)?;
         let keymapping: Self = Self::from(crude);
         Ok(keymapping)

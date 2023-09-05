@@ -1,12 +1,13 @@
 use std::path;
-use std::thread;
+
+use tokio::task::JoinHandle;
 
 use crate::io::FileOperationProgress;
 use crate::util::format;
 
 #[derive(Debug)]
 pub struct IoWorkerObserver {
-    pub handle: thread::JoinHandle<()>,
+    pub handle: JoinHandle<()>,
     pub progress: Option<FileOperationProgress>,
     msg: String,
     src: path::PathBuf,
@@ -14,7 +15,7 @@ pub struct IoWorkerObserver {
 }
 
 impl IoWorkerObserver {
-    pub fn new(handle: thread::JoinHandle<()>, src: path::PathBuf, dest: path::PathBuf) -> Self {
+    pub fn new(handle: JoinHandle<()>, src: path::PathBuf, dest: path::PathBuf) -> Self {
         Self {
             handle,
             progress: None,
@@ -24,8 +25,8 @@ impl IoWorkerObserver {
         }
     }
 
-    pub fn join(self) -> bool {
-        self.handle.join().is_ok()
+    pub async fn join(self) -> bool {
+        self.handle.await.is_ok()
     }
     pub fn set_progress(&mut self, progress: FileOperationProgress) {
         self.progress = Some(progress);

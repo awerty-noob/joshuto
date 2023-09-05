@@ -5,10 +5,10 @@ use std::process::{Command, Stdio};
 use crate::commands::cursor_move;
 use crate::config::option::CaseSensitivity;
 use crate::context::AppContext;
-use crate::error::{JoshutoError, JoshutoErrorKind, JoshutoResult};
+use crate::error::{AppResult, JoshutoError, JoshutoErrorKind};
 use crate::ui::AppBackend;
 
-pub fn search_fzf(context: &mut AppContext, backend: &mut AppBackend) -> JoshutoResult {
+pub fn search_fzf(context: &mut AppContext, backend: &mut AppBackend) -> AppResult {
     let items = context
         .tab_context_ref()
         .curr_tab_ref()

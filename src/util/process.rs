@@ -1,7 +1,8 @@
 use std::io::{self, Write};
 use std::process;
-use std::sync::mpsc;
-use std::thread;
+
+use tokio::sync::mpsc;
+use tokio::task;
 
 use crate::config::ProgramEntry;
 use crate::event::AppEvent;
@@ -10,7 +11,7 @@ pub fn fork_execute<I, S>(
     entry: &ProgramEntry,
     paths: I,
     event_tx: mpsc::Sender<AppEvent>,
-) -> std::io::Result<(u32, thread::JoinHandle<()>)>
+) -> std::io::Result<(u32, task::JoinHandle<()>)>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<std::ffi::OsStr>,
@@ -31,10 +32,12 @@ where
     let mut child = command.spawn()?;
     let child_id = child.id();
 
-    let handle = thread::spawn(move || {
+    let handle = task::spawn(async move {
         let child_id = child.id();
         let _ = child.wait();
-        let _ = event_tx.send(AppEvent::ChildProcessComplete(child_id));
+        let _ = event_tx
+            .send(AppEvent::ChildProcessComplete(child_id))
+            .await;
     });
 
     Ok((child_id, handle))

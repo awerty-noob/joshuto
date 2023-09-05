@@ -1,6 +1,6 @@
 use crate::config::AppKeyMapping;
 use crate::context::AppContext;
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 use crate::event::process_event;
 use crate::event::AppEvent;
 use crate::key_command::{Command, CommandKeybind};
@@ -8,19 +8,19 @@ use crate::traits::ToString;
 use crate::ui::views::TuiWorkerView;
 use crate::ui::AppBackend;
 
-pub fn show_tasks(
+pub async fn show_tasks(
     context: &mut AppContext,
     backend: &mut AppBackend,
     keymap_t: &AppKeyMapping,
-) -> JoshutoResult {
-    context.flush_event();
+) -> AppResult {
+    context.flush_event().await;
 
     let mut exit = false;
 
     while !exit {
         backend.render(TuiWorkerView::new(context));
 
-        if let Ok(event) = context.poll_event() {
+        if let Ok(event) = context.poll_event().await {
             match event {
                 AppEvent::Termion(key) => {
                     let key = key;
@@ -39,7 +39,8 @@ pub fn show_tasks(
                         }
                         Some(CommandKeybind::CompositeKeybind(m)) => {
                             let commands =
-                                process_event::poll_event_until_simple_keybind(backend, context, m);
+                                process_event::poll_event_until_simple_keybind(backend, context, m)
+                                    .await;
 
                             if let Some(commands) = commands {
                                 for command in commands {
@@ -50,9 +51,9 @@ pub fn show_tasks(
                             }
                         }
                     }
-                    context.flush_event();
+                    context.flush_event().await;
                 }
-                event => process_event::process_noninteractive(event, context),
+                event => process_event::process_noninteractive(event, context).await,
             };
         }
     }

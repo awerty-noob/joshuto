@@ -2,14 +2,16 @@ use std::fs;
 use std::io;
 use std::path;
 use std::process::{Command, Stdio};
-use std::sync::mpsc;
+
+use async_recursion::async_recursion;
+use tokio::sync::mpsc;
 
 #[cfg(unix)]
 use std::os::unix;
 
+use crate::error::AppResult;
 use crate::error::JoshutoError;
 use crate::error::JoshutoErrorKind;
-use crate::error::JoshutoResult;
 use crate::io::{FileOperation, FileOperationOptions, FileOperationProgress};
 use crate::util::fs::query_number_of_items;
 use crate::util::name_resolution::rename_filename_conflict;
@@ -41,23 +43,23 @@ impl IoWorkerThread {
         self._kind
     }
 
-    pub fn start(
+    pub async fn start(
         &self,
         tx: mpsc::Sender<FileOperationProgress>,
-    ) -> JoshutoResult<FileOperationProgress> {
+    ) -> AppResult<FileOperationProgress> {
         match self.kind() {
-            FileOperation::Cut => self.paste_cut(tx),
-            FileOperation::Copy => self.paste_copy(tx),
-            FileOperation::Symlink { relative: false } => self.paste_link_absolute(tx),
-            FileOperation::Symlink { relative: true } => self.paste_link_relative(tx),
+            FileOperation::Cut => self.paste_cut(tx).await,
+            FileOperation::Copy => self.paste_copy(tx).await,
+            FileOperation::Symlink { relative: false } => self.paste_link_absolute(tx).await,
+            FileOperation::Symlink { relative: true } => self.paste_link_relative(tx).await,
             FileOperation::Delete => self.delete(tx),
         }
     }
 
-    fn paste_copy(
+    async fn paste_copy(
         &self,
         tx: mpsc::Sender<FileOperationProgress>,
-    ) -> JoshutoResult<FileOperationProgress> {
+    ) -> AppResult<FileOperationProgress> {
         let (total_files, total_bytes) = query_number_of_items(&self.paths)?;
         let mut progress = FileOperationProgress::new(
             self.kind(),
@@ -68,22 +70,23 @@ impl IoWorkerThread {
             total_bytes,
         );
         for path in self.paths.iter() {
-            let _ = tx.send(progress.clone());
+            let _ = tx.send(progress.clone()).await;
             recursive_copy(
                 &tx,
                 path.as_path(),
                 self.dest.as_path(),
                 self.options,
                 &mut progress,
-            )?;
+            )
+            .await?;
         }
         Ok(progress)
     }
 
-    fn paste_cut(
+    async fn paste_cut(
         &self,
         tx: mpsc::Sender<FileOperationProgress>,
-    ) -> JoshutoResult<FileOperationProgress> {
+    ) -> AppResult<FileOperationProgress> {
         let (total_files, total_bytes) = query_number_of_items(&self.paths)?;
         let mut progress = FileOperationProgress::new(
             self.kind(),
@@ -94,22 +97,23 @@ impl IoWorkerThread {
             total_bytes,
         );
         for path in self.paths.iter() {
-            let _ = tx.send(progress.clone());
+            let _ = tx.send(progress.clone()).await;
             recursive_cut(
                 &tx,
                 path.as_path(),
                 self.dest.as_path(),
                 self.options,
                 &mut progress,
-            )?;
+            )
+            .await?;
         }
         Ok(progress)
     }
 
-    fn paste_link_absolute(
+    async fn paste_link_absolute(
         &self,
         tx: mpsc::Sender<FileOperationProgress>,
-    ) -> JoshutoResult<FileOperationProgress> {
+    ) -> AppResult<FileOperationProgress> {
         let total_files = self.paths.len();
         let total_bytes = total_files as u64;
         let mut progress = FileOperationProgress::new(
@@ -123,7 +127,7 @@ impl IoWorkerThread {
 
         #[cfg(unix)]
         for src in self.paths.iter() {
-            let _ = tx.send(progress.clone());
+            let _ = tx.send(progress.clone()).await;
             let mut dest_buf = self.dest.to_path_buf();
             if let Some(s) = src.file_name() {
                 dest_buf.push(s);
@@ -138,10 +142,10 @@ impl IoWorkerThread {
         Ok(progress)
     }
 
-    fn paste_link_relative(
+    async fn paste_link_relative(
         &self,
         tx: mpsc::Sender<FileOperationProgress>,
-    ) -> JoshutoResult<FileOperationProgress> {
+    ) -> AppResult<FileOperationProgress> {
         let total_files = self.paths.len();
         let total_bytes = total_files as u64;
         let mut progress = FileOperationProgress::new(
@@ -155,7 +159,7 @@ impl IoWorkerThread {
 
         #[cfg(unix)]
         for src in self.paths.iter() {
-            let _ = tx.send(progress.clone());
+            let _ = tx.send(progress.clone()).await;
             let mut dest_buf = self.dest.to_path_buf();
             if let Some(s) = src.file_name() {
                 dest_buf.push(s);
@@ -191,10 +195,7 @@ impl IoWorkerThread {
         Ok(progress)
     }
 
-    fn delete(
-        &self,
-        _tx: mpsc::Sender<FileOperationProgress>,
-    ) -> JoshutoResult<FileOperationProgress> {
+    fn delete(&self, _tx: mpsc::Sender<FileOperationProgress>) -> AppResult<FileOperationProgress> {
         let (total_files, total_bytes) = query_number_of_items(&self.paths)?;
         let progress = FileOperationProgress::new(
             self.kind(),
@@ -215,7 +216,8 @@ impl IoWorkerThread {
     }
 }
 
-pub fn recursive_copy(
+#[async_recursion]
+pub async fn recursive_copy(
     tx: &mpsc::Sender<FileOperationProgress>,
     src: &path::Path,
     dest: &path::Path,
@@ -251,8 +253,9 @@ pub fn recursive_copy(
                 dest_buf.as_path(),
                 options,
                 progress,
-            )?;
-            let _ = tx.send(progress.clone());
+            )
+            .await?;
+            let _ = tx.send(progress.clone()).await;
         }
         Ok(())
     } else if file_type.is_file() {
@@ -270,7 +273,8 @@ pub fn recursive_copy(
     }
 }
 
-pub fn recursive_cut(
+#[async_recursion]
+pub async fn recursive_cut(
     tx: &mpsc::Sender<FileOperationProgress>,
     src: &path::Path,
     dest: &path::Path,
@@ -307,8 +311,9 @@ pub fn recursive_cut(
                         dest_buf.as_path(),
                         options,
                         progress,
-                    )?;
-                    let _ = tx.send(progress.clone());
+                    )
+                    .await?;
+                    let _ = tx.send(progress.clone()).await;
                 }
                 fs::remove_dir(src)?;
             } else if file_type.is_symlink() {
@@ -345,7 +350,7 @@ where
     Ok(())
 }
 
-fn trash_files<P>(paths: &[P]) -> JoshutoResult
+fn trash_files<P>(paths: &[P]) -> AppResult
 where
     P: AsRef<path::Path>,
 {
@@ -355,7 +360,7 @@ where
     Ok(())
 }
 
-fn trash_file<P>(file_path: P) -> JoshutoResult
+fn trash_file<P>(file_path: P) -> AppResult
 where
     P: AsRef<path::Path>,
 {

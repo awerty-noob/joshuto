@@ -19,10 +19,10 @@ impl<'a> TuiPrompt<'a> {
         Self { prompt }
     }
 
-    pub fn get_key(&mut self, backend: &mut AppBackend, context: &mut AppContext) -> Key {
+    pub async fn get_key(&mut self, backend: &mut AppBackend, context: &mut AppContext) -> Key {
         let terminal = backend.terminal_mut();
 
-        context.flush_event();
+        context.flush_event().await;
         loop {
             let _ = terminal.draw(|frame| {
                 let f_size: Rect = frame.size();
@@ -54,15 +54,15 @@ impl<'a> TuiPrompt<'a> {
                 );
             });
 
-            if let Ok(event) = context.poll_event() {
+            if let Ok(event) = context.poll_event().await {
                 match event {
                     AppEvent::Termion(Event::Key(key)) => {
                         return key;
                     }
                     AppEvent::Termion(_) => {
-                        context.flush_event();
+                        context.flush_event().await;
                     }
-                    event => process_event::process_noninteractive(event, context),
+                    event => process_event::process_noninteractive(event, context).await,
                 };
             }
         }

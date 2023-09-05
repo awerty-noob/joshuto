@@ -1,26 +1,30 @@
 use std::str::FromStr;
 
+use async_recursion::async_recursion;
+
 use crate::config::AppKeyMapping;
 use crate::context::AppContext;
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 use crate::key_command::{AppExecute, Command};
 use crate::ui::views::{DummyListener, TuiTextField};
 use crate::ui::AppBackend;
 
-pub fn read_and_execute(
+#[async_recursion]
+pub async fn read_and_execute(
     context: &mut AppContext,
     backend: &mut AppBackend,
     keymap_t: &AppKeyMapping,
     prefix: &str,
     suffix: &str,
-) -> JoshutoResult {
-    context.flush_event();
+) -> AppResult {
+    context.flush_event().await;
     let mut listener = DummyListener {};
     let user_input: Option<String> = TuiTextField::default()
         .prompt(":")
         .prefix(prefix)
         .suffix(suffix)
-        .get_input(backend, context, &mut listener);
+        .get_input(backend, context, &mut listener)
+        .await;
 
     if let Some(s) = user_input {
         let mut trimmed = s.trim_start();
@@ -31,7 +35,7 @@ pub fn read_and_execute(
         }
 
         let command = Command::from_str(trimmed)?;
-        command.execute(context, backend, keymap_t)
+        command.execute(context, backend, keymap_t).await
     } else {
         Ok(())
     }

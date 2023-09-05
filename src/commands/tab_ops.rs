@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::config::option::NewTabMode;
 use crate::context::AppContext;
-use crate::error::{JoshutoError, JoshutoErrorKind, JoshutoResult};
+use crate::error::{AppResult, JoshutoError, JoshutoErrorKind};
 use crate::history::DirectoryHistory;
 use crate::tab::{JoshutoTab, TabHomePage};
 use crate::util::unix;
@@ -79,7 +79,7 @@ pub fn tab_switch(context: &mut AppContext, offset: i32) -> std::io::Result<()> 
     _tab_switch(new_index, context)
 }
 
-pub fn tab_switch_index(context: &mut AppContext, new_index: usize) -> JoshutoResult {
+pub fn tab_switch_index(context: &mut AppContext, new_index: usize) -> AppResult {
     let num_tabs = context.tab_context_ref().len();
     if new_index <= num_tabs {
         _tab_switch(new_index - 1, context)?;
@@ -103,7 +103,7 @@ pub fn new_tab_home_path(context: &AppContext) -> path::PathBuf {
     }
 }
 
-pub fn new_tab(context: &mut AppContext, mode: &NewTabMode) -> JoshutoResult {
+pub fn new_tab(context: &mut AppContext, mode: &NewTabMode) -> AppResult {
     let new_tab_path = match mode {
         NewTabMode::Default => Ok(new_tab_home_path(context)),
         NewTabMode::CurrentTabDir => {
@@ -150,14 +150,14 @@ pub fn new_tab(context: &mut AppContext, mode: &NewTabMode) -> JoshutoResult {
         _tab_switch(new_index, context)?;
         Ok(())
     } else {
-        JoshutoResult::Err(JoshutoError::new(
+        AppResult::Err(JoshutoError::new(
             JoshutoErrorKind::InvalidParameters,
             "Directory does not exist.".to_string(),
         ))
     }
 }
 
-pub fn close_tab(context: &mut AppContext) -> JoshutoResult {
+pub fn close_tab(context: &mut AppContext) -> AppResult {
     if context.tab_context_ref().len() <= 1 {
         let action = if context.args.change_directory {
             QuitAction::OutputCurrentDirectory

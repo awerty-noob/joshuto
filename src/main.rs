@@ -119,7 +119,7 @@ pub enum Commands {
     Version,
 }
 
-fn run_main(args: Args) -> Result<i32, JoshutoError> {
+async fn run_main(args: Args) -> Result<i32, JoshutoError> {
     if let Some(command) = args.commands {
         match command {
             Commands::Completions { shell } => {
@@ -156,10 +156,10 @@ fn run_main(args: Args) -> Result<i32, JoshutoError> {
     lazy_static::initialize(&USERNAME);
     lazy_static::initialize(&HOSTNAME);
 
-    let mut context = AppContext::new(config, args.clone());
+    let mut context = AppContext::new(config, args.clone()).await;
     {
         let mut backend: ui::AppBackend = ui::AppBackend::new()?;
-        run::run_loop(&mut backend, &mut context, keymap)?;
+        run::run_loop(&mut backend, &mut context, keymap).await?;
     }
     run_quit(&args, &context)?;
     Ok(context.quit.exit_code())
@@ -217,10 +217,11 @@ fn print_version() -> Result<i32, JoshutoError> {
     Ok(0)
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
 
-    match run_main(args) {
+    match run_main(args).await {
         Ok(exit_code) => process::exit(exit_code),
         Err(e) => {
             eprintln!("{}", e);

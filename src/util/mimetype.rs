@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::{io, process::Command};
 
-use crate::error::{JoshutoError, JoshutoErrorKind, JoshutoResult};
+use crate::error::{AppResult, JoshutoError, JoshutoErrorKind};
 
 pub struct Mimetype {
     _type: String,
@@ -25,7 +25,7 @@ impl Mimetype {
     }
 }
 
-pub fn get_mimetype(p: &Path) -> JoshutoResult<Mimetype> {
+pub fn get_mimetype(p: &Path) -> AppResult<Mimetype> {
     let res = Command::new("file")
         .arg("--mime-type")
         .arg("-Lb")

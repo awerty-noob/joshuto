@@ -1,7 +1,7 @@
 use std::io;
 
 use crate::context::AppContext;
-use crate::error::{JoshutoError, JoshutoErrorKind, JoshutoResult};
+use crate::error::{AppResult, JoshutoError, JoshutoErrorKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QuitAction {
@@ -24,7 +24,7 @@ impl QuitAction {
     }
 }
 
-pub fn quit_with_action(context: &mut AppContext, quit_action: QuitAction) -> JoshutoResult {
+pub fn quit_with_action(context: &mut AppContext, quit_action: QuitAction) -> AppResult {
     if quit_action == QuitAction::Force {
         context.quit = quit_action;
         return Ok(());

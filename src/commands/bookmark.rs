@@ -8,7 +8,7 @@ use termion::event::Event;
 
 use crate::config::{search_directories, BookmarkRaw, BookmarksRaw};
 use crate::context::AppContext;
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 use crate::event::{process_event, AppEvent};
 use crate::traits::ToString;
 use crate::ui::views::TuiView;
@@ -29,7 +29,7 @@ fn find_bookmark_file() -> Option<path::PathBuf> {
     None
 }
 
-pub fn add_bookmark(context: &mut AppContext, backend: &mut AppBackend) -> JoshutoResult {
+pub async fn add_bookmark(context: &mut AppContext, backend: &mut AppBackend) -> AppResult {
     let cwd = std::env::current_dir()?;
 
     let bookmark_path = match search_directories(BOOKMARKS_FILE, &CONFIG_HIERARCHY) {
@@ -38,7 +38,7 @@ pub fn add_bookmark(context: &mut AppContext, backend: &mut AppBackend) -> Joshu
     };
 
     if let Some(bookmark_path) = bookmark_path {
-        let key = poll_for_bookmark_key(context, backend);
+        let key = poll_for_bookmark_key(context, backend).await;
         if let Some(key) = key {
             if let Ok(mut bookmark) = BOOKMARKS_T.lock() {
                 bookmark.insert(key, cwd.to_string_lossy().to_string());
@@ -67,11 +67,11 @@ pub fn add_bookmark(context: &mut AppContext, backend: &mut AppBackend) -> Joshu
     Ok(())
 }
 
-pub fn change_directory_bookmark(
+pub async fn change_directory_bookmark(
     context: &mut AppContext,
     backend: &mut AppBackend,
-) -> JoshutoResult {
-    let key = poll_for_bookmark_key(context, backend);
+) -> AppResult {
+    let key = poll_for_bookmark_key(context, backend).await;
 
     if let Some(key) = key {
         if let Ok(bookmarks) = BOOKMARKS_T.lock() {
@@ -84,8 +84,11 @@ pub fn change_directory_bookmark(
     Ok(())
 }
 
-fn poll_for_bookmark_key(context: &mut AppContext, backend: &mut AppBackend) -> Option<Event> {
-    context.flush_event();
+async fn poll_for_bookmark_key(
+    context: &mut AppContext,
+    backend: &mut AppBackend,
+) -> Option<Event> {
+    context.flush_event().await;
 
     let mut bookmarks: Vec<String> = BOOKMARKS_T
         .lock()
@@ -128,10 +131,10 @@ fn poll_for_bookmark_key(context: &mut AppContext, backend: &mut AppBackend) -> 
             frame.render_widget(menu_widget, menu_rect);
         });
 
-        if let Ok(event) = context.poll_event() {
+        if let Ok(event) = context.poll_event().await {
             match event {
                 AppEvent::Termion(key) => return Some(key),
-                event => process_event::process_noninteractive(event, context),
+                event => process_event::process_noninteractive(event, context).await,
             };
         }
     }

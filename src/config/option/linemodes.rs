@@ -1,6 +1,6 @@
 use serde_derive::Deserialize;
 
-use crate::error::{JoshutoError, JoshutoErrorKind, JoshutoResult};
+use crate::error::{AppResult, JoshutoError, JoshutoErrorKind};
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -21,7 +21,7 @@ impl Default for LineMode {
 }
 
 impl LineMode {
-    pub fn from_string(name: &str) -> JoshutoResult<LineMode> {
+    pub fn from_string(name: &str) -> AppResult<LineMode> {
         match name {
             "all" => Ok(LineMode::all()),
             "none" => Ok(LineMode::empty()),

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 
 pub use self::icons_raw::*;
 
@@ -36,7 +36,7 @@ impl From<IconsRaw> for Icons {
 }
 
 impl Icons {
-    pub(crate) fn default_icons() -> JoshutoResult<Self> {
+    pub(crate) fn default_icons() -> AppResult<Self> {
         let icons: IconsRaw = toml::from_str(DEFAULT_ICONS)?;
         Ok(Self::from(icons))
     }

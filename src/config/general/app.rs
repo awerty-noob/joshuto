@@ -4,7 +4,7 @@ use super::app_raw::AppConfigRaw;
 use super::DEFAULT_CONFIG_FILE_PATH;
 
 use crate::config::option::{DisplayOption, PreviewOption, SearchOption, TabOption};
-use crate::error::JoshutoResult;
+use crate::error::AppResult;
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -20,7 +20,7 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub fn default_res() -> JoshutoResult<Self> {
+    pub fn default_res() -> AppResult<Self> {
         let raw: AppConfigRaw = toml::from_str(DEFAULT_CONFIG_FILE_PATH)?;
         Ok(Self::from(raw))
     }

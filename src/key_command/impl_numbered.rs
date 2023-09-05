@@ -1,7 +1,7 @@
 use crate::commands::*;
 use crate::config::AppKeyMapping;
 use crate::context::AppContext;
-use crate::error::{JoshutoError, JoshutoErrorKind, JoshutoResult};
+use crate::error::{AppResult, JoshutoError, JoshutoErrorKind};
 use crate::ui::AppBackend;
 
 use super::{Command, NumberedExecute};
@@ -17,7 +17,7 @@ impl NumberedExecute for Command {
         context: &mut AppContext,
         backend: &mut AppBackend,
         keymap_t: &AppKeyMapping,
-    ) -> JoshutoResult {
+    ) -> AppResult {
         match self {
             Self::CursorMoveUp { .. } => cursor_move::up(context, number_prefix),
             Self::CursorMoveDown { .. } => cursor_move::down(context, number_prefix),

@@ -3,7 +3,7 @@ use crate::config::AppKeyMapping;
 use crate::context::AppContext;
 use crate::event::process_event;
 use crate::event::AppEvent;
-use crate::key_command::{AppExecute, CommandKeybind};
+use crate::key_command::CommandKeybind;
 use crate::preview::preview_default;
 use crate::tab::JoshutoTab;
 use crate::traits::ToString;
@@ -17,7 +17,7 @@ use uuid::Uuid;
 use ratatui::layout::Rect;
 use termion::event::Event;
 
-pub fn run_loop(
+pub async fn run_loop(
     backend: &mut ui::AppBackend,
     context: &mut AppContext,
     keymap_t: AppKeyMapping,
@@ -57,7 +57,7 @@ pub fn run_loop(
         }
 
         // wait for an event and pop it
-        let event = match context.poll_event() {
+        let event = match context.poll_event().await {
             Ok(event) => event,
             Err(_) => return Ok(()), // TODO
         };
@@ -68,13 +68,13 @@ pub fn run_loop(
         }
 
         // process user input
-        process_input(context, backend, &keymap_t, event);
+        process_input(context, backend, &keymap_t, event).await;
     } // end of main loop
     Ok(())
 }
 
 #[inline]
-fn process_input(
+async fn process_input(
     context: &mut AppContext,
     backend: &mut AppBackend,
     keymap_t: &AppKeyMapping,
@@ -83,7 +83,7 @@ fn process_input(
     // handle the event
     match event {
         AppEvent::Termion(Event::Mouse(event)) => {
-            process_event::process_mouse(event, context, backend, keymap_t);
+            process_event::process_mouse(event, context, backend, keymap_t).await;
             preview_default::load_preview(context, backend);
         }
         AppEvent::Termion(key) => {
@@ -94,7 +94,7 @@ fn process_input(
                 // in the event where mouse input is not supported
                 // but we still want to register scroll
                 Event::Unsupported(s) => {
-                    process_event::process_unsupported(context, backend, keymap_t, s);
+                    process_event::process_unsupported(context, backend, keymap_t, s).await;
                 }
                 key => match keymap_t.default_view.get(&key) {
                     None => {
@@ -104,7 +104,7 @@ fn process_input(
                     }
                     Some(CommandKeybind::SimpleKeybind { commands, .. }) => {
                         for command in commands {
-                            if let Err(e) = command.execute(context, backend, keymap_t) {
+                            if let Err(e) = command.execute(context, backend, keymap_t).await {
                                 context.message_queue_mut().push_error(e.to_string());
                                 break;
                             }
@@ -112,11 +112,12 @@ fn process_input(
                     }
                     Some(CommandKeybind::CompositeKeybind(m)) => {
                         let commands =
-                            process_event::poll_event_until_simple_keybind(backend, context, m);
+                            process_event::poll_event_until_simple_keybind(backend, context, m)
+                                .await;
 
                         if let Some(commands) = commands {
                             for command in commands {
-                                if let Err(e) = command.execute(context, backend, keymap_t) {
+                                if let Err(e) = command.execute(context, backend, keymap_t).await {
                                     context.message_queue_mut().push_error(e.to_string());
                                     break;
                                 }
@@ -126,9 +127,9 @@ fn process_input(
                 },
             }
             preview_default::load_preview(context, backend);
-            context.flush_event();
+            context.flush_event().await;
         }
-        event => process_event::process_noninteractive(event, context),
+        event => process_event::process_noninteractive(event, context).await,
     }
 }
 
